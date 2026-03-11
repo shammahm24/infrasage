@@ -2,6 +2,8 @@ import {
   DynamoDBClient,
   PutItemCommand,
   ScanCommand,
+  UpdateItemCommand,
+  ConditionalCheckFailedException,
 } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
@@ -91,3 +93,39 @@ export async function getSummary(): Promise<SummaryApiResponse> {
     })),
   };
 }
+
+export async function markPatchApplied(
+  auditId: string,
+  resolvedViolationCount?: number
+): Promise<boolean> {
+  const expressionParts = ["patch_applied = :true"];
+  const expressionValues: Record<string, any> = {
+    ":true": { BOOL: true },
+  };
+
+  if (typeof resolvedViolationCount === "number") {
+    expressionParts.push("resolved_violation_count = :resolved");
+    expressionValues[":resolved"] = { N: resolvedViolationCount.toString() };
+  }
+
+  try {
+    await client.send(
+      new UpdateItemCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          audit_id: { S: auditId },
+        },
+        UpdateExpression: `SET ${expressionParts.join(", ")}`,
+        ExpressionAttributeValues: expressionValues,
+        ConditionExpression: "attribute_exists(audit_id)",
+      })
+    );
+    return true;
+  } catch (err) {
+    if (err instanceof ConditionalCheckFailedException) {
+      return false;
+    }
+    throw err;
+  }
+}
+
