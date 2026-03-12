@@ -3,6 +3,15 @@
   "displayName": "InfraSage",
   "description": "AI-powered Terraform governance enforcement in the IDE",
   "version": "1.0.0",
+  "publisher": "shammmahm24",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shammmahm24/infrasage"
+  },
+  "bugs": {
+    "url": "https://github.com/shammmahm24/infrasage/issues"
+  },
+  "homepage": "https://github.com/shammmahm24/infrasage",
   "engines": { "vscode": "^1.74.0" },
   "main": "out/extension.js",
   "activationEvents": ["onStartupFinished"],

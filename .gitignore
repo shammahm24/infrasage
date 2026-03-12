@@ -141,3 +141,5 @@ vite.config.ts.timestamp-*
 instructions.md
 
 lambda.zip
+
+.vscode
