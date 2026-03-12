@@ -36,6 +36,36 @@ export async function handleAudit(
           mode === "bedrock"
             ? await invokeAudit(fileContent)
             : runLocalAudit(fileName, fileContent);
+
+        const violation_count = bedrockResponse.violations?.length ?? 0;
+        const carbon_delta_total = bedrockResponse.carbon_delta_total ?? 0;
+        const timestamp = new Date().toISOString();
+
+        if (violation_count === 0) {
+          const audit_id = await putAudit({
+            timestamp,
+            alignment_score: bedrockResponse.alignment_score,
+            violation_count,
+            carbon_delta_total,
+            patch_applied: false,
+            file_name: fileName,
+          });
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              audit_id,
+              timestamp,
+              alignment_score: bedrockResponse.alignment_score,
+              violation_count,
+              carbon_delta_total,
+              violations: [],
+              unified_diff_patch: "",
+              patch_applied: false,
+            }),
+          };
+        }
+
         const diffValidation = validateUnifiedDiff(
           bedrockResponse.unified_diff_patch,
           fileContent
@@ -44,10 +74,6 @@ export async function handleAudit(
         if (!diffValidation.valid) {
           throw new Error(diffValidation.error ?? "Invalid diff");
         }
-
-        const violation_count = bedrockResponse.violations?.length ?? 0;
-        const carbon_delta_total = bedrockResponse.carbon_delta_total ?? 0;
-        const timestamp = new Date().toISOString();
 
         const audit_id = await putAudit({
           timestamp,

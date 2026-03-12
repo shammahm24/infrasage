@@ -323,14 +323,20 @@ function getWebviewHtml(webview: vscode.Webview): string {
         rerunBtn.style.display = 'inline-block';
       }
       if (msg.type === 'summary') {
-        const d = msg.data;
-        document.getElementById('avgAlign').textContent = d.average_alignment;
-        document.getElementById('trend').textContent = (d.trend_delta >= 0 ? '+' : '') + d.trend_delta;
-        document.getElementById('carbon').textContent = d.total_carbon_delta;
-        document.getElementById('resolved').textContent = d.violations_resolved;
+        const d = msg.data || {};
+        const num = (n) => (typeof n === 'number' && !Number.isNaN(n) ? n : null);
+        const avg = num(d.average_alignment);
+        const trend = num(d.trend_delta);
+        const carbon = num(d.total_carbon_delta);
+        const resolved = num(d.violations_resolved);
+        document.getElementById('avgAlign').textContent = avg !== null ? String(avg) : '—';
+        document.getElementById('trend').textContent = trend !== null ? (trend >= 0 ? '+' : '') + trend : '—';
+        document.getElementById('carbon').textContent = carbon !== null ? String(carbon) : '—';
+        document.getElementById('resolved').textContent = resolved !== null ? String(resolved) : '—';
         const list = document.getElementById('recentList');
-        list.innerHTML = (d.recent_audits && d.recent_audits.length)
-          ? d.recent_audits.map(a => '<li>' + a.alignment_score + ' – ' + a.timestamp + '</li>').join('')
+        const recent = Array.isArray(d.recent_audits) ? d.recent_audits : [];
+        list.innerHTML = recent.length
+          ? recent.map(a => '<li>' + (a.alignment_score ?? 0) + ' – ' + (a.timestamp ?? '') + '</li>').join('')
           : '<li class="empty">No audits yet</li>';
       }
     });

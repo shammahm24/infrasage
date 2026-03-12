@@ -143,3 +143,9 @@ instructions.md
 lambda.zip
 
 .vscode
+
+demo/
+
+*.tf
+
+*.vsix

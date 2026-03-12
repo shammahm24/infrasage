@@ -1,14 +1,5 @@
 import type { BedrockAuditResponse } from "./schema";
 
-function findLines(content: string, predicate: (line: string) => boolean): number[] {
-  const lines = content.split("\n");
-  const idxs: number[] = [];
-  lines.forEach((l, i) => {
-    if (predicate(l)) idxs.push(i);
-  });
-  return idxs;
-}
-
 export function runLocalAudit(
   fileName: string,
   fileContent: string
@@ -55,28 +46,35 @@ export function runLocalAudit(
 
   const lines = fileContent.split("\n");
   const diffLines: string[] = [];
-  diffLines.push(`@@ -1,${lines.length} +1,${lines.length} @@`);
+  const addTags =
+    !fileContent.includes("tags = {") &&
+    lines.some((l) => l.trim().startsWith('resource "aws_instance"'));
+  const fixPab = lines.some((l) => l.includes("block_public_acls       = false"));
 
-  const ec2Idxs = findLines(fileContent, (l) =>
-    l.trim().startsWith('resource "aws_instance"')
-  );
-  if (ec2Idxs.length > 0 && !fileContent.includes("tags = {")) {
-    const idx = ec2Idxs[0];
-    diffLines.push(`-${lines[idx]}`);
-    diffLines.push(`+${lines[idx]}`);
-    diffLines.push("+  tags = {");
-    diffLines.push('+    Environment = "demo"');
-    diffLines.push("+    Owner       = \"InfraSage\"");
-    diffLines.push("+  }");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isEc2Open =
+      addTags && line.trim().startsWith('resource "aws_instance"') && line.includes("{");
+    const isPabFalse = fixPab && line.includes("block_public_acls       = false");
+
+    if (isEc2Open) {
+      diffLines.push(`-${line}`);
+      diffLines.push(`+${line}`);
+      diffLines.push("+  tags = {");
+      diffLines.push('+    Environment = "demo"');
+      diffLines.push('+    Owner       = "InfraSage"');
+      diffLines.push("+  }");
+      continue;
+    }
+    if (isPabFalse) {
+      diffLines.push(`-${line}`);
+      diffLines.push(`+${line.replace("= false", "= true")}`);
+      continue;
+    }
+    diffLines.push(` ${line}`);
   }
-
-  const pabIdxs = findLines(fileContent, (l) =>
-    l.includes("block_public_acls       = false")
-  );
-  pabIdxs.forEach((idx) => {
-    diffLines.push(`-${lines[idx]}`);
-    diffLines.push("+block_public_acls       = true");
-  });
+  const addedLines = addTags ? 4 : 0;
+  diffLines.unshift(`@@ -1,${lines.length} +1,${lines.length + addedLines} @@`);
 
   const appliedViolations = violations.length;
   const alignment = Math.max(0, 100 - appliedViolations * 15);

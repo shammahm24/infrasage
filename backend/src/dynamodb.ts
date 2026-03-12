@@ -79,17 +79,18 @@ export async function getSummary(): Promise<SummaryApiResponse> {
     0
   );
 
+  const num = (n: unknown): number => (typeof n === "number" && !Number.isNaN(n) ? n : 0);
   return {
-    average_alignment: Math.round(average_alignment * 100) / 100,
-    trend_delta,
-    total_carbon_delta,
-    violations_resolved,
+    average_alignment: num(Math.round(average_alignment * 100) / 100),
+    trend_delta: num(trend_delta),
+    total_carbon_delta: num(total_carbon_delta),
+    violations_resolved: num(violations_resolved),
     recent_audits: last5.map((i) => ({
-      audit_id: i.audit_id,
-      timestamp: i.timestamp,
-      alignment_score: i.alignment_score,
-      violation_count: i.violation_count,
-      patch_applied: i.patch_applied,
+      audit_id: String(i.audit_id ?? ""),
+      timestamp: String(i.timestamp ?? ""),
+      alignment_score: num(i.alignment_score),
+      violation_count: num(i.violation_count),
+      patch_applied: Boolean(i.patch_applied),
     })),
   };
 }
