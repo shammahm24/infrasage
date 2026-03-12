@@ -4,7 +4,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import { BedrockAuditResponseSchema, type BedrockAuditResponse } from "./schema";
 
-const BEDROCK_MODEL_ID = "us.amazon.nova-lite-v1:0";
+const BEDROCK_MODEL_ID = "amazon.nova-2-lite-v1:0";
 const REGION = process.env.AWS_REGION || "us-east-1";
 
 const client = new BedrockRuntimeClient({ region: REGION });

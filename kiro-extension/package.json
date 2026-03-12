@@ -1,0 +1,43 @@
+{
+  "name": "infrasage",
+  "displayName": "InfraSage",
+  "description": "AI-powered Terraform governance enforcement in the IDE",
+  "version": "1.0.0",
+  "engines": { "vscode": "^1.74.0" },
+  "main": "out/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "configuration": {
+      "title": "InfraSage",
+      "properties": {
+        "infrasage.apiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "API Gateway base URL (e.g. https://xxx.execute-api.us-east-1.amazonaws.com/prod)"
+        }
+      }
+    },
+    "viewsContainers": {
+      "panel": [{
+        "id": "infrasagePanel",
+        "title": "InfraSage",
+        "icon": "$(shield)"
+      }]
+    },
+    "views": {
+      "infrasagePanel": [{
+        "type": "webview",
+        "id": "infrasageView",
+        "name": "InfraSage"
+      }]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -p . -w"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0"
+  }
+}
