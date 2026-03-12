@@ -68,7 +68,7 @@ describe("handleAudit", () => {
   it("returns 502 when Bedrock/diff fails even after retry", async () => {
     mockInvokeAudit.mockResolvedValue({
       alignment_score: 80,
-      violations: [],
+      violations: [{ message: "test", severity: "medium" }],
       unified_diff_patch: "@@ -1,1 +1,1 @@\n-does_not_exist\n+added",
       carbon_delta_total: 0,
     });
