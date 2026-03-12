@@ -1,6 +1,7 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { AuditRequestSchema } from "../schema";
 import { invokeAudit } from "../bedrock";
+import { runLocalAudit } from "../local-auditor";
 import { validateUnifiedDiff } from "../diff-validator";
 import { putAudit } from "../dynamodb";
 
@@ -26,11 +27,15 @@ export async function handleAudit(
     }
 
     const { fileName, fileContent } = parsed.data;
+    const mode = process.env.AUDITOR_MODE || "bedrock";
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const bedrockResponse = await invokeAudit(fileContent);
+        const bedrockResponse =
+          mode === "bedrock"
+            ? await invokeAudit(fileContent)
+            : runLocalAudit(fileName, fileContent);
         const diffValidation = validateUnifiedDiff(
           bedrockResponse.unified_diff_patch,
           fileContent
