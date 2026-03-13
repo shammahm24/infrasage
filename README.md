@@ -6,20 +6,20 @@ InfraSage is an AI-assisted Terraform governance workflow that audits Infrastruc
 
 ```mermaid
 flowchart LR
-  Dev[Developer edits Terraform<br/>`.tf` file] -->|Save| Kiro[Kiro / VS Code extension<br/>`kiro-extension`]
-  Kiro -->|POST /audit<br/>{ fileName, fileContent }| APIGW[Amazon API Gateway]
-  APIGW --> Lambda[Audit Lambda<br/>`backend`]
+  Dev[Developer edits Terraform tf file] -->|Save| Kiro[Kiro / VS Code extension (kiro-extension)]
+  Kiro -->|POST /audit (fileName, fileContent)| APIGW[Amazon API Gateway]
+  APIGW --> Lambda[Audit Lambda (backend)]
 
-  Lambda -->|AUDITOR_MODE=bedrock| Bedrock[Amazon Bedrock<br/>Nova model]
-  Lambda -->|AUDITOR_MODE=local| Local[Local auditor (sim mode)<br/>`backend/src/local-auditor.ts`]
+  Lambda -->|AUDITOR_MODE = bedrock| Bedrock[Amazon Bedrock Nova model]
+  Lambda -->|AUDITOR_MODE = local| Local[Local auditor (backend/src/local-auditor.ts)]
 
-  Bedrock --> Resp[Audit response<br/>score + violations + unified diff]
+  Bedrock --> Resp[Audit response: score, violations, diff]
   Local --> Resp
 
-  Lambda -->|PutItem| DDB[(DynamoDB<br/>Audits table)]
+  Lambda -->|PutItem| DDB[(DynamoDB Audits table)]
   Lambda -->|200 JSON| Kiro
 
-  Kiro -->|Apply Patch (optional)| Editor[Edits `.tf` using unified diff]
+  Kiro -->|Apply Patch (optional)| Editor[Edits tf using unified diff]
   Editor -->|Save triggers re-audit| Kiro
 
   Kiro -->|POST /audit/{id}/applied| APIGW
@@ -27,8 +27,8 @@ flowchart LR
   Lambda -->|UpdateItem| DDB
 
   Kiro -->|GET /summary| APIGW
-  APIGW --> LambdaSummary[Summary Lambda handler<br/>`GET /summary`]
-  LambdaSummary -->|Scan/aggregate| DDB
+  APIGW --> LambdaSummary[Summary handler (GET /summary)]
+  LambdaSummary -->|Scan and aggregate| DDB
   LambdaSummary -->|200 JSON| Kiro
 ```
 
