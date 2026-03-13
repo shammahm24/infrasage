@@ -6,30 +6,28 @@ InfraSage is an AI-assisted Terraform governance workflow that audits Infrastruc
 
 ```mermaid
 flowchart LR
-  Dev[Developer edits Terraform tf file] -->|Save| Kiro[Kiro / VS Code extension (kiro-extension)]
-  Kiro -->|POST /audit (fileName, fileContent)| APIGW[Amazon API Gateway]
-  APIGW --> Lambda[Audit Lambda (backend)]
+  Dev["Developer"] --> Kiro["Kiro VS Code Extension"]
 
-  Lambda -->|AUDITOR_MODE = bedrock| Bedrock[Amazon Bedrock Nova model]
-  Lambda -->|AUDITOR_MODE = local| Local[Local auditor (backend/src/local-auditor.ts)]
+  subgraph AWS
+    APIGW["API Gateway"]
+    Lambda["Audit Lambda"]
+    LambdaSummary["Summary Lambda"]
+    DDB[("DynamoDB Audits")]
+    Bedrock["Bedrock Nova Model"]
+  end
 
-  Bedrock --> Resp[Audit response: score, violations, diff]
-  Local --> Resp
-
-  Lambda -->|PutItem| DDB[(DynamoDB Audits table)]
-  Lambda -->|200 JSON| Kiro
-
-  Kiro -->|Apply Patch (optional)| Editor[Edits tf using unified diff]
-  Editor -->|Save triggers re-audit| Kiro
-
-  Kiro -->|POST /audit/{id}/applied| APIGW
+  Kiro -->|POST /audit| APIGW
   APIGW --> Lambda
-  Lambda -->|UpdateItem| DDB
+
+  Lambda -->|bedrock mode| Bedrock
+
+  Lambda --> DDB
+  Lambda -->|response| Kiro
 
   Kiro -->|GET /summary| APIGW
-  APIGW --> LambdaSummary[Summary handler (GET /summary)]
-  LambdaSummary -->|Scan and aggregate| DDB
-  LambdaSummary -->|200 JSON| Kiro
+  APIGW --> LambdaSummary
+  LambdaSummary --> DDB
+  LambdaSummary --> Kiro
 ```
 
 ## What happens when you save a `.tf` file
