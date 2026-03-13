@@ -5,7 +5,7 @@ import {
   UpdateItemCommand,
   ConditionalCheckFailedException,
 } from "@aws-sdk/client-dynamodb";
-import { marshall } from "@aws-sdk/util-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import type { AuditRecord, SummaryApiResponse } from "./schema";
 
@@ -40,7 +40,7 @@ export async function getSummary(): Promise<SummaryApiResponse> {
   );
 
   const items = (result.Items || []).map((item) => {
-    const u = item as Record<string, unknown>;
+    const u = unmarshall(item) as Record<string, unknown>;
     return {
       audit_id: u.audit_id as string,
       timestamp: u.timestamp as string,

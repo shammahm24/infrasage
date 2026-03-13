@@ -335,8 +335,9 @@ function getWebviewHtml(webview: vscode.Webview): string {
         document.getElementById('resolved').textContent = resolved !== null ? String(resolved) : '—';
         const list = document.getElementById('recentList');
         const recent = Array.isArray(d.recent_audits) ? d.recent_audits : [];
+        const ts = (a) => (typeof a.timestamp === 'string' ? a.timestamp : (a.timestamp && a.timestamp.S) ? a.timestamp.S : '');
         list.innerHTML = recent.length
-          ? recent.map(a => '<li>' + (a.alignment_score ?? 0) + ' – ' + (a.timestamp ?? '') + '</li>').join('')
+          ? recent.map(a => '<li>' + (a.alignment_score ?? 0) + ' – ' + ts(a) + '</li>').join('')
           : '<li class="empty">No audits yet</li>';
       }
     });

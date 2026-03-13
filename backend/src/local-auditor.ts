@@ -58,12 +58,14 @@ export function runLocalAudit(
     const isPabFalse = fixPab && line.includes("block_public_acls       = false");
 
     if (isEc2Open) {
+      const indent = line.slice(0, line.length - line.trimStart().length);
+      const innerIndent = indent + "  ";
       diffLines.push(`-${line}`);
       diffLines.push(`+${line}`);
-      diffLines.push("+  tags = {");
-      diffLines.push('+    Environment = "demo"');
-      diffLines.push('+    Owner       = "InfraSage"');
-      diffLines.push("+  }");
+      diffLines.push(`+${innerIndent}tags = {`);
+      diffLines.push(`+${innerIndent}  Environment = "demo"`);
+      diffLines.push(`+${innerIndent}  Owner       = "InfraSage"`);
+      diffLines.push(`+${innerIndent}}`);
       continue;
     }
     if (isPabFalse) {

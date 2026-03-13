@@ -66,13 +66,17 @@ export async function handleAudit(
           };
         }
 
-        const diffValidation = validateUnifiedDiff(
-          bedrockResponse.unified_diff_patch,
-          fileContent
-        );
-
-        if (!diffValidation.valid) {
-          throw new Error(diffValidation.error ?? "Invalid diff");
+        const patch = bedrockResponse.unified_diff_patch ?? "";
+        const hasDiffLines =
+          patch.includes("\n-") ||
+          patch.startsWith("-") ||
+          patch.includes("\n+") ||
+          patch.startsWith("+");
+        if (hasDiffLines) {
+          const diffValidation = validateUnifiedDiff(patch, fileContent);
+          if (!diffValidation.valid) {
+            throw new Error(diffValidation.error ?? "Invalid diff");
+          }
         }
 
         const audit_id = await putAudit({
@@ -84,6 +88,7 @@ export async function handleAudit(
           file_name: fileName,
         });
 
+        const patchToReturn = hasDiffLines ? bedrockResponse.unified_diff_patch : "";
         return {
           statusCode: 200,
           headers,
@@ -94,7 +99,7 @@ export async function handleAudit(
             violation_count,
             carbon_delta_total,
             violations: bedrockResponse.violations ?? [],
-            unified_diff_patch: bedrockResponse.unified_diff_patch,
+            unified_diff_patch: patchToReturn,
             patch_applied: false,
           }),
         };
