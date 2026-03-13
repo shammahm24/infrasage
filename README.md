@@ -30,6 +30,8 @@ flowchart LR
   LambdaSummary --> Kiro
 ```
 
+![Architecture](infrasage-architecture.png)
+
 ## What happens when you save a `.tf` file
 
 - **Trigger**: The Kiro extension listens for `.tf` saves.
