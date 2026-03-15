@@ -4,7 +4,9 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import { BedrockAuditResponseSchema, type BedrockAuditResponse } from "./schema";
 
-const BEDROCK_MODEL_ID = "amazon.nova-2-lite-v1:0";
+// Use inference profile ID; direct model ID "amazon.nova-2-lite-v1:0" returns:
+// "Invocation of model ID ... with on-demand throughput isn't supported. Retry with ... inference profile"
+const BEDROCK_MODEL_ID = "global.amazon.nova-2-lite-v1:0";
 const REGION = process.env.AWS_REGION || "us-east-2";
 
 const client = new BedrockRuntimeClient({ region: REGION });
