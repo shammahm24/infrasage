@@ -54,6 +54,7 @@ export async function invokeAudit(fileContent: string): Promise<BedrockAuditResp
   try {
     parsed = JSON.parse(bodyString);
   } catch {
+    console.error("[bedrock] body parse failed", { bodyPreview: bodyString.slice(0, 300) });
     throw new Error("Bedrock response is not valid JSON");
   }
 
@@ -77,6 +78,11 @@ export async function invokeAudit(fileContent: string): Promise<BedrockAuditResp
 
   const result = BedrockAuditResponseSchema.safeParse(parsedResponse);
   if (!result.success) {
+    console.error("[bedrock] schema validation failed", {
+      zodError: result.error.message,
+      issues: result.error.issues,
+      parsedKeys: parsedResponse && typeof parsedResponse === "object" ? Object.keys(parsedResponse) : [],
+    });
     throw new Error(`Invalid Bedrock schema: ${result.error.message}`);
   }
   return result.data;

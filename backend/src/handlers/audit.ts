@@ -40,6 +40,7 @@ export async function handleAudit(
         const violation_count = bedrockResponse.violations?.length ?? 0;
         const carbon_delta_total = bedrockResponse.carbon_delta_total ?? 0;
         const timestamp = new Date().toISOString();
+        const patch = bedrockResponse.unified_diff_patch ?? "";
 
         if (violation_count === 0) {
           const audit_id = await putAudit({
@@ -66,7 +67,6 @@ export async function handleAudit(
           };
         }
 
-        const patch = bedrockResponse.unified_diff_patch ?? "";
         const hasDiffLines =
           patch.includes("\n-") ||
           patch.startsWith("-") ||
@@ -105,6 +105,11 @@ export async function handleAudit(
         };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
+        console.error("[audit] inner catch", {
+          attempt,
+          message: lastError.message,
+          stack: lastError.stack,
+        });
         if (attempt === MAX_RETRIES) break;
       }
     }
@@ -119,6 +124,8 @@ export async function handleAudit(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("[audit] 500 internal error", { message, stack });
     return {
       statusCode: 500,
       headers,
