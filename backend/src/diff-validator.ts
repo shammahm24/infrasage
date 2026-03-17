@@ -26,7 +26,13 @@ export function validateUnifiedDiff(
     const line = lines[i];
     if (line.startsWith("-") && !line.startsWith("---")) {
       const removed = line.slice(1);
-      if (!originalLines.includes(removed)) {
+      const removedTrimmed = removed.trim();
+      const exists = originalLines.some((orig) => {
+        if (orig === removed) return true;
+        if (orig.trim() === removedTrimmed) return true;
+        return false;
+      });
+      if (!exists) {
         return {
           valid: false,
           error: `Line to remove not found in original: ${JSON.stringify(removed.slice(0, 80))}`,

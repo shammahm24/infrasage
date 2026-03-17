@@ -39,7 +39,7 @@ For the given Terraform file content, analyze it for sustainability and governan
 
 - alignment_score: number between 0 and 100 (100 = fully aligned with best practices)
 - violations: array of objects, each with optional "message", "line", "severity"
-- unified_diff_patch: a valid unified diff string that would fix the violations. Must include @@ hunk headers and lines starting with - (to remove) or + (to add). No other text.
+- unified_diff_patch: a valid unified diff string that would fix the violations. Must include @@ hunk headers and lines starting with - (to remove) or + (to add). No other text. When you include a '-' line, it MUST match a line in the original file EXACTLY (including spaces and the full value). Do NOT truncate values or change attribute names. Copy the entire original line verbatim. For '+' lines, you may add new lines as needed.
 - carbon_delta_total: number (optional, estimated carbon impact delta if patch applied)
 
 Output only the JSON object, nothing else.`;
@@ -86,6 +86,9 @@ export async function invokeAudit(fileContent: string): Promise<BedrockAuditResp
   }
 
   const bodyString = new TextDecoder().decode(response.body);
+  console.log("[bedrock] raw body", {
+    bodyPreview: bodyString.slice(0, 500),
+  });
   let parsed: unknown;
   try {
     parsed = JSON.parse(bodyString);
@@ -104,6 +107,10 @@ export async function invokeAudit(fileContent: string): Promise<BedrockAuditResp
     const content = (parsed as { content?: Array<{ text?: string }> }).content;
     if (Array.isArray(content) && content[0]?.text) jsonStr = content[0].text;
   }
+
+  console.log("[bedrock] content text", {
+    jsonStrPreview: jsonStr.slice(0, 500),
+  });
 
   const parsedResponse = parseJsonFromModelOutput(jsonStr);
   if (parsedResponse === null) {
