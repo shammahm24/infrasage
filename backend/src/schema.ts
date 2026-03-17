@@ -20,7 +20,7 @@ export const BedrockAuditResponseSchema = z.object({
   alignment_score: z.number().min(0).max(100),
   violations: z.array(ViolationSchema),
   unified_diff_patch: z.string(),
-  carbon_delta_total: z.number().optional(),
+  carbon_delta_total: z.number().nullable().optional(),
 });
 
 export type BedrockAuditResponse = z.infer<typeof BedrockAuditResponseSchema>;
