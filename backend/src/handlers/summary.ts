@@ -10,7 +10,12 @@ export async function handleSummary(
   };
 
   try {
+    console.log("[summary] start");
     const summary = await getSummary();
+    console.log("[summary] success", {
+      average_alignment: summary.average_alignment,
+      recentCount: summary.recent_audits.length,
+    });
     return {
       statusCode: 200,
       headers,
@@ -18,6 +23,7 @@ export async function handleSummary(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error("[summary] error", { message });
     return {
       statusCode: 500,
       headers,

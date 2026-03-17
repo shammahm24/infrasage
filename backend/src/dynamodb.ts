@@ -20,12 +20,21 @@ export async function putAudit(
     ...record,
     audit_id,
   };
-  await client.send(
-    new PutItemCommand({
-      TableName: TABLE_NAME,
-      Item: marshall(item, { removeUndefinedValues: true }),
-    })
-  );
+  try {
+    await client.send(
+      new PutItemCommand({
+        TableName: TABLE_NAME,
+        Item: marshall(item, { removeUndefinedValues: true }),
+      })
+    );
+    console.log("[ddb] putAudit success", { audit_id, table: TABLE_NAME });
+  } catch (err) {
+    console.error("[ddb] putAudit error", {
+      audit_id,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   return audit_id;
 }
 
@@ -80,7 +89,7 @@ export async function getSummary(): Promise<SummaryApiResponse> {
   );
 
   const num = (n: unknown): number => (typeof n === "number" && !Number.isNaN(n) ? n : 0);
-  return {
+  const summary: SummaryApiResponse = {
     average_alignment: num(Math.round(average_alignment * 100) / 100),
     trend_delta: num(trend_delta),
     total_carbon_delta: num(total_carbon_delta),
@@ -93,6 +102,8 @@ export async function getSummary(): Promise<SummaryApiResponse> {
       patch_applied: Boolean(i.patch_applied),
     })),
   };
+  console.log("[ddb] getSummary success", { itemCount: items.length });
+  return summary;
 }
 
 export async function markPatchApplied(

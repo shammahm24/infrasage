@@ -11,6 +11,28 @@ const REGION = process.env.AWS_REGION || "us-east-2";
 
 const client = new BedrockRuntimeClient({ region: REGION });
 
+/** Try to parse JSON from model output; handles markdown-wrapped or leading/trailing text. */
+function parseJsonFromModelOutput(raw: string): unknown | null {
+  let s = raw.trim();
+  const codeFence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/;
+  const match = s.match(codeFence);
+  if (match) s = match[1].trim();
+  try {
+    return JSON.parse(s);
+  } catch {
+    const start = s.indexOf("{");
+    const end = s.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      try {
+        return JSON.parse(s.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
 const SYSTEM_PROMPT = `You are a Terraform sustainability and governance auditor. Output ONLY valid JSON, no markdown, no explanation.
 
 For the given Terraform file content, analyze it for sustainability and governance violations (e.g. inefficient resources, missing tags, non-compliant patterns). Return a JSON object with exactly these keys:
@@ -23,27 +45,41 @@ For the given Terraform file content, analyze it for sustainability and governan
 Output only the JSON object, nothing else.`;
 
 export async function invokeAudit(fileContent: string): Promise<BedrockAuditResponse> {
-  const response = await client.send(
-    new InvokeModelCommand({
-      modelId: BEDROCK_MODEL_ID,
-      contentType: "application/json",
-      accept: "application/json",
-      body: JSON.stringify({
-        schemaVersion: "messages-v1",
-        system: [{ text: SYSTEM_PROMPT }],
-        messages: [
-          {
-            role: "user",
-            content: [{ text: `Audit this Terraform file:\n\n${fileContent}` }],
+  console.log("[bedrock] invokeAudit start", {
+    modelId: BEDROCK_MODEL_ID,
+    region: REGION,
+    contentLength: fileContent.length,
+  });
+  let response;
+  try {
+    response = await client.send(
+      new InvokeModelCommand({
+        modelId: BEDROCK_MODEL_ID,
+        contentType: "application/json",
+        accept: "application/json",
+        body: JSON.stringify({
+          schemaVersion: "messages-v1",
+          system: [{ text: SYSTEM_PROMPT }],
+          messages: [
+            {
+              role: "user",
+              content: [{ text: `Audit this Terraform file:\n\n${fileContent}` }],
+            },
+          ],
+          inferenceConfig: {
+            maxTokens: 4096,
+            temperature: 0.2,
           },
-        ],
-        inferenceConfig: {
-          maxTokens: 4096,
-          temperature: 0.2,
-        },
-      }),
-    })
-  );
+        }),
+      })
+    );
+  } catch (e) {
+    console.error("[bedrock] InvokeModel failed", {
+      message: e instanceof Error ? e.message : String(e),
+      name: e instanceof Error ? e.name : undefined,
+    });
+    throw e;
+  }
 
   if (!response.body) {
     throw new Error("Empty Bedrock response body");
@@ -69,10 +105,9 @@ export async function invokeAudit(fileContent: string): Promise<BedrockAuditResp
     if (Array.isArray(content) && content[0]?.text) jsonStr = content[0].text;
   }
 
-  let parsedResponse: unknown;
-  try {
-    parsedResponse = JSON.parse(jsonStr);
-  } catch {
+  const parsedResponse = parseJsonFromModelOutput(jsonStr);
+  if (parsedResponse === null) {
+    console.error("[bedrock] model output not valid JSON", { jsonStrPreview: jsonStr.slice(0, 500) });
     throw new Error("Bedrock response is not valid JSON");
   }
 

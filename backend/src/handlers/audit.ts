@@ -16,9 +16,30 @@ export async function handleAudit(
   };
 
   try {
-    const body = event.body ? JSON.parse(event.body) : {};
+    console.log("[audit] invocation start", {
+      hasEvent: !!event,
+      hasBody: !!event?.body,
+      requestId: (event as any)?.requestContext?.requestId ?? null,
+      path: event.path,
+      httpMethod: event.httpMethod,
+    });
+    let body: unknown = {};
+    if (event.body) {
+      try {
+        body = JSON.parse(event.body);
+      } catch (e) {
+        console.error("[audit] body JSON.parse failed", {
+          bodyPreview: event.body.slice(0, 300),
+          message: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
+    }
     const parsed = AuditRequestSchema.safeParse(body);
     if (!parsed.success) {
+      console.error("[audit] schema parse failed", {
+        issues: parsed.error.issues,
+      });
       return {
         statusCode: 400,
         headers,
@@ -29,9 +50,15 @@ export async function handleAudit(
     const { fileName, fileContent } = parsed.data;
     const mode = process.env.AUDITOR_MODE || "bedrock";
     let lastError: Error | null = null;
+    console.log("[audit] request", {
+      mode,
+      fileName,
+      fileContentLength: fileContent?.length,
+    });
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
+        console.log("[audit] attempt", { attempt, mode });
         const bedrockResponse =
           mode === "bedrock"
             ? await invokeAudit(fileContent)
@@ -41,6 +68,12 @@ export async function handleAudit(
         const carbon_delta_total = bedrockResponse.carbon_delta_total ?? 0;
         const timestamp = new Date().toISOString();
         const patch = bedrockResponse.unified_diff_patch ?? "";
+        console.log("[audit] bedrock response", {
+          violation_count,
+          alignment_score: bedrockResponse.alignment_score,
+          patchLength: patch.length,
+          hasPatch: !!patch,
+        });
 
         if (violation_count === 0) {
           const audit_id = await putAudit({
@@ -72,10 +105,20 @@ export async function handleAudit(
           patch.startsWith("-") ||
           patch.includes("\n+") ||
           patch.startsWith("+");
+        let safeToApplyPatch = false;
         if (hasDiffLines) {
+          console.log("[audit] validating diff", {
+            hasDiffLines,
+            patchLength: patch.length,
+          });
           const diffValidation = validateUnifiedDiff(patch, fileContent);
           if (!diffValidation.valid) {
-            throw new Error(diffValidation.error ?? "Invalid diff");
+            console.error("[audit] diff validation failed, returning audit without patch", {
+              error: diffValidation.error,
+            });
+            safeToApplyPatch = false;
+          } else {
+            safeToApplyPatch = true;
           }
         }
 
@@ -88,7 +131,13 @@ export async function handleAudit(
           file_name: fileName,
         });
 
-        const patchToReturn = hasDiffLines ? bedrockResponse.unified_diff_patch : "";
+        const patchToReturn = safeToApplyPatch ? bedrockResponse.unified_diff_patch : "";
+        console.log("[audit] invocation success", {
+          audit_id,
+          violation_count,
+          alignment_score: bedrockResponse.alignment_score,
+          hasPatch: !!patchToReturn,
+        });
         return {
           statusCode: 200,
           headers,

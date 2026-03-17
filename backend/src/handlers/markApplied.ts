@@ -22,6 +22,7 @@ export async function handleMarkApplied(
     : "";
 
   if (!audit_id) {
+    console.error("[markApplied] invalid audit_id in path", { path });
     return {
       statusCode: 400,
       headers,
@@ -30,9 +31,13 @@ export async function handleMarkApplied(
   }
 
   try {
+    console.log("[markApplied] start", { audit_id });
     const rawBody = event.body ? JSON.parse(event.body) : {};
     const parsed = BodySchema.safeParse(rawBody);
     if (!parsed.success) {
+      console.error("[markApplied] schema parse failed", {
+        issues: parsed.error.issues,
+      });
       return {
         statusCode: 400,
         headers,
@@ -48,6 +53,7 @@ export async function handleMarkApplied(
     try {
       const updated = await markPatchApplied(audit_id, resolvedViolationCount);
       if (!updated) {
+        console.warn("[markApplied] audit not found", { audit_id });
         return {
           statusCode: 404,
           headers,
@@ -66,6 +72,7 @@ export async function handleMarkApplied(
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      console.error("[markApplied] update error", { message });
       return {
         statusCode: 500,
         headers,
@@ -74,6 +81,7 @@ export async function handleMarkApplied(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error("[markApplied] internal error", { message });
     return {
       statusCode: 500,
       headers,
