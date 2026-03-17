@@ -78,38 +78,113 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  const applyUnifiedDiff = (content: string, patch: string): string => {
+  const applyUnifiedDiff = (
+    content: string,
+    patch: string
+  ): { content: string; applied: boolean; error?: string } => {
+    if (!patch || !patch.trim()) {
+      return { content, applied: false, error: "Empty patch" };
+    }
+
     const orig = content.split("\n");
     const patchLines = patch.split("\n");
     const out: string[] = [];
-    let i = 0;
-    for (const line of patchLines) {
-      if (line.startsWith("@@") || line.startsWith("---") || line.startsWith("+++")) {
+
+    const hunkHeaderRe = /^@@\s*-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@/;
+
+    let origIdx = 0; // 0-based index into orig
+    let p = 0;
+    let sawHunk = false;
+    let appliedAnyChange = false;
+
+    const expectLine = (expected: string, actual: string, kind: string): string | null => {
+      if (expected !== actual) {
+        return `${kind} mismatch: expected ${JSON.stringify(expected)} but saw ${JSON.stringify(actual)}`;
+      }
+      return null;
+    };
+
+    while (p < patchLines.length) {
+      const line = patchLines[p];
+
+      // Skip file headers and empty leading lines
+      if (line.startsWith("---") || line.startsWith("+++")) {
+        p++;
         continue;
       }
-      if (line.startsWith("-") && !line.startsWith("---")) {
-        const removed = line.slice(1);
-        const idx = orig.indexOf(removed, i);
-        if (idx !== -1) {
-          orig.splice(idx, 1);
-          i = idx;
+
+      const m = line.match(hunkHeaderRe);
+      if (!m) {
+        p++;
+        continue;
+      }
+
+      sawHunk = true;
+      const oldStart1 = Number(m[1]); // 1-based
+      if (!Number.isFinite(oldStart1) || oldStart1 < 1) {
+        return { content, applied: false, error: `Invalid hunk header: ${line}` };
+      }
+
+      // Copy unchanged lines before the hunk
+      const targetOrigIdx = oldStart1 - 1;
+      if (targetOrigIdx < origIdx || targetOrigIdx > orig.length) {
+        return { content, applied: false, error: `Hunk position out of range: ${line}` };
+      }
+      out.push(...orig.slice(origIdx, targetOrigIdx));
+      origIdx = targetOrigIdx;
+
+      p++; // move past @@ header
+
+      // Apply hunk body
+      while (p < patchLines.length && !patchLines[p].startsWith("@@")) {
+        const hl = patchLines[p];
+        if (hl.startsWith("---") || hl.startsWith("+++")) {
+          p++;
+          continue;
         }
-        continue;
-      }
-      if (line.startsWith("+") && !line.startsWith("+++")) {
-        out.push(line.slice(1));
-        continue;
-      }
-      if (line.startsWith(" ") && i < orig.length) {
-        out.push(line.slice(1));
-        i++;
-      } else if (line === "" && i < orig.length) {
-        out.push(orig[i]);
-        i++;
+
+        const prefix = hl[0] ?? "";
+        const text = hl.slice(1);
+
+        if (prefix === " ") {
+          const actual = orig[origIdx] ?? "";
+          const err = expectLine(text, actual, "context");
+          if (err) return { content, applied: false, error: err };
+          out.push(actual);
+          origIdx++;
+        } else if (prefix === "-") {
+          const actual = orig[origIdx] ?? "";
+          const err = expectLine(text, actual, "remove");
+          if (err) return { content, applied: false, error: err };
+          origIdx++;
+          appliedAnyChange = true;
+        } else if (prefix === "+") {
+          out.push(text);
+          appliedAnyChange = true;
+        } else if (hl === "\\ No newline at end of file") {
+          // ignore
+        } else if (hl === "") {
+          // treat as empty context line; must match empty actual line
+          const actual = orig[origIdx] ?? "";
+          const err = expectLine("", actual, "context");
+          if (err) return { content, applied: false, error: err };
+          out.push(actual);
+          origIdx++;
+        } else {
+          return { content, applied: false, error: `Unexpected patch line: ${hl}` };
+        }
+        p++;
       }
     }
-    out.push(...orig.slice(i));
-    return out.join("\n");
+
+    if (!sawHunk) {
+      return { content, applied: false, error: "Patch has no hunks" };
+    }
+
+    // Append remaining original content after last hunk
+    out.push(...orig.slice(origIdx));
+    const newContent = out.join("\n");
+    return { content: newContent, applied: appliedAnyChange, error: appliedAnyChange ? undefined : "No changes applied" };
   };
 
   const applyPatchToDocument = async (
@@ -117,14 +192,14 @@ export function activate(context: vscode.ExtensionContext) {
     patch: string
   ): Promise<boolean> => {
     const content = doc.getText();
-    const newContent = applyUnifiedDiff(content, patch);
-    if (newContent === content) return false;
+    const res = applyUnifiedDiff(content, patch);
+    if (!res.applied || res.content === content) return false;
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       doc.positionAt(0),
       doc.positionAt(content.length)
     );
-    edit.replace(doc.uri, fullRange, newContent);
+    edit.replace(doc.uri, fullRange, res.content);
     return vscode.workspace.applyEdit(edit);
   };
 
@@ -170,7 +245,9 @@ export function activate(context: vscode.ExtensionContext) {
           const doc = await vscode.workspace.openTextDocument(lastAuditUri);
           const applied = await applyPatchToDocument(doc, lastAuditResult.unified_diff_patch);
           if (!applied) {
-            vscode.window.showWarningMessage("InfraSage: Patch could not be applied.");
+            vscode.window.showWarningMessage(
+              "InfraSage: Patch could not be applied (diff did not match the current file). Re-run audit and try again."
+            );
             return;
           }
           await doc.save();
